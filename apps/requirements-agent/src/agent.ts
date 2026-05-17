@@ -9,27 +9,33 @@ import { scoreRequirementsQuality }  from './quality-gate.js';
 import { REQUIREMENTS_TOOLS }        from './tools.js';
 import { MOCK_JIRA_STORIES }         from './mock-jira.js';
 import { randomUUID }                from 'crypto';
-import { writeFile }                 from 'fs/promises';
+import { writeFile, readFile }       from 'fs/promises';
 import { join }                      from 'path';
+import pdfParse                      from 'pdf-parse';
 
 const SYSTEM_PROMPT = `You are the Requirements Agent in an autonomous test automation pipeline.
 
 Your job:
 1. Fetch Jira stories from the project using get_jira_stories
+   - If a PRD PDF path is provided, also call parse_prd_pdf to extract additional requirements
+   - If a Confluence spec is available, call get_confluence_spec for supplementary context
 2. For each story, call score_requirements_quality to evaluate its acceptance criteria
-3. For stories with recommendation 'ingest' or 'ingest_with_warning',
-   call generate_test_scenario to produce a full Gherkin scenario
-4. If a Confluence spec URL is available, call get_confluence_spec for additional context
-5. Once ALL scenarios are generated, call store_scenarios_in_chroma with the complete batch
-6. Finally call save_scenarios_json to write the output file
+3. For stories with recommendation 'ingest' or 'ingest_with_warning':
+   a. FIRST call search_similar_scenarios to retrieve existing related scenarios from ChromaDB (RAG)
+   b. Use the retrieved scenarios as context examples to generate a BETTER, non-duplicate scenario
+   c. Then call generate_test_scenario with the full Gherkin output
+4. Once ALL scenarios are generated, call store_scenarios_in_chroma with the complete batch
+5. Finally call save_scenarios_json to write the output file
 
 Rules:
 - NEVER skip the quality scoring step — it gates what gets ingested
+- ALWAYS call search_similar_scenarios before generate_test_scenario (RAG step)
 - Stories with recommendation 'skip' must NOT be converted to scenarios
 - Always include the jiraStoryId in every scenario you generate
 - Gherkin format: Feature / Scenario / Given / When / Then / And
 - Tags must be from: @smoke @regression @e2e @api @visual
-- One story may produce multiple scenarios (happy path + error cases)`;
+- One story may produce multiple scenarios (happy path + error cases)
+- PDF and Confluence content should be used to enrich acceptance criteria context`;
 
 export class RequirementsAgent extends BaseAgent {
   private chroma: ChromaStore;
@@ -94,6 +100,43 @@ export class RequirementsAgent extends BaseAgent {
           return result;
         }
         return { content: 'Confluence spec not available (MCP not configured).', pageId: i.pageId ?? 'mock' };
+      }
+
+      // ── search_similar_scenarios (RAG retrieval) ─────────────
+      case 'search_similar_scenarios': {
+        const query = i.query as string;
+        const topK  = (i.topK as number | undefined) ?? 3;
+        const results = await this.chroma.search(query, topK);
+        const docs = results.documents?.[0] ?? [];
+        const metas = results.metadatas?.[0] ?? [];
+        console.log(`[req-agent] RAG: retrieved ${docs.length} similar scenarios for "${query}"`);
+        return {
+          count: docs.length,
+          scenarios: docs.map((doc, idx) => ({
+            content:  doc,
+            metadata: metas[idx] ?? {},
+          })),
+        };
+      }
+
+      // ── parse_prd_pdf ─────────────────────────────────────────
+      case 'parse_prd_pdf': {
+        const filePath = i.filePath as string;
+        const fullPath = join(process.cwd(), filePath);
+        try {
+          const buffer = await readFile(fullPath);
+          const parsed = await pdfParse(buffer);
+          console.log(`[req-agent] PDF parsed: ${parsed.numpages} pages, ${parsed.text.length} chars — ${filePath}`);
+          return {
+            text:     parsed.text,
+            pages:    parsed.numpages,
+            filePath,
+          };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[req-agent] PDF parse error for ${filePath}: ${msg}`);
+          return { error: msg, filePath };
+        }
       }
 
       // ── score_requirements_quality ────────────────────────────

@@ -73,6 +73,35 @@ export const REQUIREMENTS_TOOLS: OpenAI.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'search_similar_scenarios',
+      description: 'RAG retrieval — search ChromaDB for existing scenarios similar to a given story. Use this BEFORE generate_test_scenario to get context examples and avoid duplicates.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query:  { type: 'string', description: 'Natural language query e.g. "user login authentication"' },
+          topK:   { type: 'number', description: 'Number of results to return (default 3)' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'parse_prd_pdf',
+      description: 'Parse a PRD or specification PDF file and extract its text content. Use this when a PDF path is provided as input to extract requirements before scoring and scenario generation.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filePath: { type: 'string', description: 'Absolute or relative path to the PDF file' },
+        },
+        required: ['filePath'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'store_scenarios_in_chroma',
       description: 'Persist all generated test scenarios to ChromaDB vector store. Call once after all scenarios are ready.',
       parameters: {

@@ -1,0 +1,25 @@
+setup:
+  project: autonomous-qa-pipeline
+  config: dev
+
+# Doppler manages all secrets for this project.
+# Install: https://docs.doppler.com/docs/install-cli
+#
+# Usage:
+#   doppler setup                        # link to project
+#   doppler run -- pnpm build            # inject secrets into any command
+#   doppler run -- .\run-tests.ps1       # run full test suite with secrets
+#   doppler secrets                      # list all secrets
+#
+# Required secrets in Doppler dashboard:
+#   GEMINI_API_KEY       - Google Gemini API key (https://aistudio.google.com/apikey)
+#   REDIS_URL            - Redis connection URL (default: redis://localhost:6379)
+#   CHROMA_URL           - ChromaDB URL (default: http://localhost:8000)
+#   GITHUB_TOKEN         - GitHub PAT for GitHub MCP server
+#   JIRA_URL             - Jira instance URL (optional)
+#   JIRA_USERNAME        - Jira username (optional)
+#   JIRA_API_TOKEN       - Jira API token (optional)
+#   JIRA_PROJECT_KEY     - Jira project key e.g. QA (optional)
+#   SLACK_BOT_TOKEN      - Slack bot token (optional)
+#
+# Without Doppler: create .env.local with GEMINI_API_KEY=your_key
