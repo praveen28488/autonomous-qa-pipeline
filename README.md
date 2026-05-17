@@ -202,6 +202,3 @@ AgentMessageSchema = {
 }
 ```
 
-## License
-
-MIT
