@@ -36,7 +36,7 @@ export class RequirementsAgent extends BaseAgent {
   private skipped: RequirementsOutput['skippedStories'] = [];
   private useMockData: boolean;
 
-  constructor(cfg: AgentConfig, chroma: ChromaStore, useMockData = false) {
+  constructor(cfg: Omit<AgentConfig, 'tools' | 'systemPrompt'>, chroma: ChromaStore, useMockData = false) {
     super({ ...cfg, tools: REQUIREMENTS_TOOLS, systemPrompt: SYSTEM_PROMPT });
     this.chroma      = chroma;
     this.useMockData = useMockData;

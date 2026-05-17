@@ -11,7 +11,7 @@ const main = async () => {
   await chroma.connect();
 
   const agent = new RequirementsAgent(
-    { id: 'requirements', bus, tools: [], systemPrompt: '' },
+    { id: 'requirements', bus },
     chroma,
     useMockData
   );

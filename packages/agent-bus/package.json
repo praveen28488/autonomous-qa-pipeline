@@ -11,13 +11,11 @@
     "clean":     "npx rimraf dist"
   },
   "dependencies": {
-    "@qa/schemas":            "workspace:*",
-    "@anthropic-ai/sdk":      "^0.39.0",
-    "@langchain/langgraph":   "^0.2.0",
-    "@langchain/core":        "^0.3.0",
-    "ioredis":                "^5.3.0",
-    "zod":                    "^3.23.0",
-    "uuid":                   "^9.0.0"
+    "@qa/schemas": "workspace:*",
+    "openai":      "^6.0.0",
+    "ioredis":     "^5.3.0",
+    "zod":         "^3.23.0",
+    "uuid":        "^9.0.0"
   },
   "devDependencies": {
     "typescript":  "^5.4.0",

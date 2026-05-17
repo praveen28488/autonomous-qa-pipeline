@@ -87,7 +87,7 @@ class OrchestratorAgent extends BaseAgent {
 const bus  = createBus(process.env.REDIS_URL);
 const orch = new OrchestratorAgent({
   id: 'orchestrator', bus, tools: [], systemPrompt: '',
-} satisfies AgentConfig);
+});
 
 orch.start()
   .then(() => console.log('[orchestrator] ready'))

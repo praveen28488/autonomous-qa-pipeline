@@ -1,98 +1,116 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { Bus } from './bus.js';
 import { randomUUID } from 'crypto';
 
-// Messages accumulate as the agentic loop progresses
+// Use Google Gemini via its OpenAI-compatible endpoint — free tier, no credit card
+const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
+const DEFAULT_MODEL   = 'gemini-2.0-flash';
+
+type GeminiTool = OpenAI.ChatCompletionTool;
+
+// Conversation messages accumulate across the agentic loop
 type AgentState = {
-  messages:  Anthropic.MessageParam[];
-  lastResp:  Anthropic.Message | null;
+  messages: OpenAI.ChatCompletionMessageParam[];
 };
 
 export interface AgentConfig {
   id:           string;
   model?:       string;
   maxTokens?:   number;
-  tools:        Anthropic.Tool[];
+  tools:        GeminiTool[];
   systemPrompt: string;
   bus:          Bus;
 }
 
 /**
- * BaseAgent — the foundation every pipeline agent extends.
+ * BaseAgent — foundation every pipeline agent extends.
  *
- * Implements the agentic loop pattern:
- *   think (call Claude) → act (execute tool calls) → repeat until end_turn → emit
+ * Implements the agentic loop:
+ *   think (call Gemini) → act (execute tool calls) → repeat until stop → emit
  *
- * Subclasses must implement:
- *   executeTool(name, input) — what to do when Claude calls a tool
- *   emitNode(state)         — publish the done signal to the bus
+ * Uses Google Gemini via OpenAI-compatible API (free tier).
+ * Subclasses implement: executeTool() and emitNode().
  */
 export abstract class BaseAgent {
-  protected claude: Anthropic;
+  protected llm: OpenAI;
   private   heartbeatTimer?: ReturnType<typeof setInterval>;
 
   constructor(protected cfg: AgentConfig) {
-    this.claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    this.llm = new OpenAI({
+      apiKey:  process.env.GEMINI_API_KEY ?? '',
+      baseURL: GEMINI_BASE_URL,
+    });
   }
 
   /** Run the agent from an initial user message. */
   async run(initialMessage: string): Promise<void> {
     const state: AgentState = {
-      messages: [{ role: 'user', content: initialMessage }],
-      lastResp: null,
+      messages: [
+        // System prompt as first message (Gemini supports system role)
+        ...(this.cfg.systemPrompt
+          ? [{ role: 'system' as const, content: this.cfg.systemPrompt }]
+          : []),
+        { role: 'user', content: initialMessage },
+      ],
     };
 
     // Agentic loop: think → act → think → ... → emit
     while (true) {
-      // ── Think: call Claude ───────────────────────────────
-      const resp = await this.claude.messages.create({
-        model:      this.cfg.model ?? 'claude-sonnet-4-20250514',
+      // ── Think: call Gemini ────────────────────────────────
+      const response = await this.llm.chat.completions.create({
+        model:      this.cfg.model ?? DEFAULT_MODEL,
         max_tokens: this.cfg.maxTokens ?? 4096,
-        system:     this.cfg.systemPrompt,
         tools:      this.cfg.tools.length ? this.cfg.tools : undefined,
         messages:   state.messages,
       });
 
-      state.lastResp = resp;
-      // Append Claude's response to the conversation
-      state.messages.push({ role: 'assistant', content: resp.content });
+      const choice  = response.choices[0];
+      const message = choice.message;
+
+      // Append the assistant's response to conversation history
+      state.messages.push({
+        role:       'assistant',
+        content:    message.content ?? null,
+        tool_calls: message.tool_calls,
+      });
 
       // ── Act: execute any tool calls ───────────────────────
-      const toolUses = resp.content.filter(
-        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-      );
+      const toolCalls = message.tool_calls ?? [];
 
-      if (toolUses.length > 0) {
+      if (toolCalls.length > 0) {
         // Execute all tool calls concurrently
-        const toolResults = await Promise.all(
-          toolUses.map(async (tu) => {
-            try {
-              const output = await this.executeTool(tu.name, tu.input);
-              return {
-                type:        'tool_result' as const,
-                tool_use_id: tu.id,
-                content:     JSON.stringify(output),
-              };
-            } catch (e: unknown) {
-              const msg = e instanceof Error ? e.message : String(e);
-              return {
-                type:        'tool_result' as const,
-                tool_use_id: tu.id,
-                content:     `Error: ${msg}`,
-                is_error:    true,
-              };
-            }
-          })
-        );
+        const toolResults = (await Promise.all(
+          toolCalls
+            .filter((tc): tc is OpenAI.ChatCompletionMessageToolCall & { type: 'function' } =>
+              tc.type === 'function'
+            )
+            .map(async (tc) => {
+              try {
+                const input  = JSON.parse(tc.function.arguments);
+                const output = await this.executeTool(tc.function.name, input);
+                return {
+                  role:         'tool' as const,
+                  tool_call_id: tc.id,
+                  content:      JSON.stringify(output),
+                };
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : String(e);
+                return {
+                  role:         'tool' as const,
+                  tool_call_id: tc.id,
+                  content:      `Error: ${msg}`,
+                };
+              }
+            })
+        )).filter(Boolean) as OpenAI.ChatCompletionToolMessageParam[];
 
-        // Feed tool results back to Claude
-        state.messages.push({ role: 'user', content: toolResults });
+        // Feed tool results back to Gemini
+        state.messages.push(...toolResults);
       }
 
-      // ── Loop control ─────────────────────────────────────
-      // Continue if Claude made tool calls (it wants to do more work)
-      // Stop if Claude sent end_turn (it's finished)
-      const shouldContinue = toolUses.length > 0 && resp.stop_reason !== 'end_turn';
+      // ── Loop control ──────────────────────────────────────
+      // Continue only if Gemini made tool calls and hasn't stopped
+      const shouldContinue = toolCalls.length > 0 && choice.finish_reason === 'tool_calls';
       if (!shouldContinue) break;
     }
 
@@ -103,7 +121,6 @@ export abstract class BaseAgent {
   // ── Abstract methods subclasses must implement ──────────
 
   protected abstract executeTool(name: string, input: unknown): Promise<unknown>;
-
   protected abstract emitNode(state: AgentState): Promise<void>;
 
   // ── Heartbeat: lets Orchestrator know this agent is alive ─
@@ -122,9 +139,7 @@ export abstract class BaseAgent {
             payload:       { status: 'alive', ts: Date.now() },
           }
         );
-      } catch {
-        // heartbeat failures are non-fatal
-      }
+      } catch { /* heartbeat failures are non-fatal */ }
     }, 10_000);
   }
 
