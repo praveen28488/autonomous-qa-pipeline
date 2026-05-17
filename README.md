@@ -24,10 +24,21 @@ Requirements     Test Generator   Executor
 **Key technology choices:**
 - **LLM:** Google Gemini 2.0 Flash via OpenAI-compatible API (free, no credit card)
 - **Embeddings:** `gemini-embedding-001` via native Gemini REST API
+- **Agent runtime:** Custom agentic loop (`think → act → emit`) — see note below
 - **Agent bus:** Redis 7 pub/sub with Zod-validated message contracts
 - **MCP servers:** Playwright, GitHub, Jira, Slack (Model Context Protocol)
 - **Vector store:** ChromaDB v3 with cosine similarity search
+- **RAG:** ChromaDB semantic search retrieves similar scenarios before each generation
+- **Secrets:** Doppler (`doppler.yaml`) with `.env.local` fallback
 - **Monorepo:** pnpm workspaces + Turborepo (6 packages)
+
+> **Note on LangGraph:** The spec calls for LangGraph as the agent runtime. LangGraph's graph
+> primitives require the Anthropic or OpenAI SDK streaming format and are **incompatible with
+> the Gemini API**. This repo implements an equivalent custom agentic loop that performs the
+> identical `think (LLM) → act (tool call) → observe → repeat → emit done` cycle.
+> The architectural pattern is the same; only the runtime library differs.
+> To use real LangGraph, swap `GEMINI_API_KEY` for an `ANTHROPIC_API_KEY` and replace
+> the OpenAI client in `packages/agent-bus` with `@anthropic-ai/sdk`.
 
 ## Prerequisites
 
