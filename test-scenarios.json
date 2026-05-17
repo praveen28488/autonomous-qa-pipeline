@@ -1,0 +1,62 @@
+[
+  {
+    "id": "c4713f31-ce77-455e-98b1-05af2d2659de",
+    "jiraStoryId": "QA-101",
+    "title": "Successful login with valid credentials",
+    "gherkin": "Feature: User Authentication\n\n  Scenario: Successful login with valid credentials\n    Given the user is on the login page\n    When they enter a valid email and password\n    Then they should be redirected to the dashboard\n    And their name should be displayed in the header",
+    "tags": [
+      "@smoke",
+      "@e2e"
+    ],
+    "priority": "critical",
+    "sourceType": "jira",
+    "qualityScore": 95,
+    "generatedAt": "2026-05-17T21:22:54.141Z",
+    "rawAC": "Given the user is on the login page\nWhen they enter a valid email and password\nThen they should be redirected to the dashboard\nAnd their name should be displayed in the header"
+  },
+  {
+    "id": "f6228a75-3de8-48d2-8951-5860a5d138f3",
+    "jiraStoryId": "QA-102",
+    "title": "Error message displayed on invalid login attempt",
+    "gherkin": "Feature: User Authentication\n\n  Scenario: Error message on invalid credentials\n    Given the user is on the login page\n    When they enter an invalid email or wrong password\n    Then they should see an error message saying \"Invalid credentials\"\n    And they should remain on the login page",
+    "tags": [
+      "@regression",
+      "@e2e"
+    ],
+    "priority": "high",
+    "sourceType": "jira",
+    "qualityScore": 90,
+    "generatedAt": "2026-05-17T21:22:54.141Z",
+    "rawAC": "Given the user is on the login page\nWhen they enter an invalid email or wrong password\nThen they should see an error message saying \"Invalid credentials\"\nAnd they should remain on the login page"
+  },
+  {
+    "id": "8548a193-8cbd-4e9b-8aa1-da3e1b45d48b",
+    "jiraStoryId": "QA-103",
+    "title": "Password reset via email link",
+    "gherkin": "Feature: Password Reset\n\n  Scenario: Reset password via email\n    Given the user has forgotten their password\n    When they click \"Forgot password\" and enter their email\n    Then they should receive a password reset email within 2 minutes\n    And clicking the link should allow them to set a new password",
+    "tags": [
+      "@regression",
+      "@e2e"
+    ],
+    "priority": "high",
+    "sourceType": "jira",
+    "qualityScore": 88,
+    "generatedAt": "2026-05-17T21:22:54.141Z",
+    "rawAC": "Given the user has forgotten their password\nWhen they click \"Forgot password\" and enter their email\nThen they should receive a password reset email within 2 minutes\nAnd clicking the link should allow them to set a new password"
+  },
+  {
+    "id": "184a25c4-b4ce-4de7-b95f-50e6327a922a",
+    "jiraStoryId": "QA-104",
+    "title": "User can view their profile page",
+    "gherkin": "Feature: User Profile\n\n  Scenario: View profile details\n    Given the user is logged in\n    When they navigate to the profile page\n    Then they should see their name, email, and avatar\n    And they should be able to edit their display name",
+    "tags": [
+      "@regression",
+      "@e2e"
+    ],
+    "priority": "medium",
+    "sourceType": "jira",
+    "qualityScore": 85,
+    "generatedAt": "2026-05-17T21:22:54.141Z",
+    "rawAC": "Given the user is logged in\nWhen they navigate to the profile page\nThen they should see their name, email, and avatar\nAnd they should be able to edit their display name"
+  }
+]

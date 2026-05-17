@@ -3,6 +3,7 @@ import {
   TestScenario, RequirementsOutput, RequirementsOutputSchema,
   TestScenarioSchema, SCHEMA_VERSION,
 } from '@qa/schemas';
+import { McpRegistry }              from '@qa/mcp-clients';
 import { ChromaStore }               from './chroma-store.js';
 import { scoreRequirementsQuality }  from './quality-gate.js';
 import { REQUIREMENTS_TOOLS }        from './tools.js';
@@ -32,38 +33,70 @@ Rules:
 
 export class RequirementsAgent extends BaseAgent {
   private chroma: ChromaStore;
+  private mcp:    McpRegistry | null;
   private collectedScenarios: TestScenario[] = [];
   private skipped: RequirementsOutput['skippedStories'] = [];
-  private useMockData: boolean;
 
-  constructor(cfg: Omit<AgentConfig, 'tools' | 'systemPrompt'>, chroma: ChromaStore, useMockData = false) {
+  /**
+   * @param cfg    - Agent config (id, bus). tools and systemPrompt are set internally.
+   * @param mcp    - MCP registry. Pass null to fall back to built-in mock Jira data.
+   * @param chroma - ChromaDB store (already connected).
+   */
+  constructor(
+    cfg:    Omit<AgentConfig, 'tools' | 'systemPrompt'>,
+    mcp:    McpRegistry | null,
+    chroma: ChromaStore,
+  ) {
     super({ ...cfg, tools: REQUIREMENTS_TOOLS, systemPrompt: SYSTEM_PROMPT });
-    this.chroma      = chroma;
-    this.useMockData = useMockData;
+    this.mcp    = mcp;
+    this.chroma = chroma;
   }
 
+  /** executeTool is called by BaseAgent for every tool call Claude makes. */
   protected async executeTool(name: string, input: unknown): Promise<unknown> {
     const i = input as Record<string, unknown>;
 
     switch (name) {
+      // ── get_jira_stories ─────────────────────────────────────
       case 'get_jira_stories': {
-        if (this.useMockData) {
-          const maxResults = (i.maxResults as number | undefined) ?? 50;
-          const stories = MOCK_JIRA_STORIES.slice(0, maxResults);
-          console.log(`[req-agent] returning ${stories.length} mock Jira stories`);
-          return { issues: stories, total: stories.length };
+        const maxResults = (i.maxResults as number | undefined) ?? 50;
+
+        if (this.mcp) {
+          // Real path: delegate to the Jira MCP server
+          const jql = i.epicId
+            ? `project=${i.projectKey} AND "Epic Link"=${i.epicId}`
+            : `project=${i.projectKey} ORDER BY created DESC`;
+          const result = await this.mcp.jira.callTool({
+            name: 'jira_search_issues',
+            arguments: {
+              jql,
+              maxResults,
+              fields: ['summary', 'description', 'customfield_10016', 'priority', 'labels'],
+            },
+          });
+          console.log(`[req-agent] fetched Jira stories via MCP`);
+          return result;
         }
-        // Real Jira MCP call (requires configured JIRA_URL etc.)
-        throw new Error('Real Jira not configured — set useMockData=true or provide JIRA credentials');
+
+        // Fallback: built-in mock stories (when Jira credentials not configured)
+        const stories = MOCK_JIRA_STORIES.slice(0, maxResults);
+        console.log(`[req-agent] returning ${stories.length} mock Jira stories`);
+        return { issues: stories, total: stories.length };
       }
 
+      // ── get_confluence_spec ───────────────────────────────────
       case 'get_confluence_spec': {
-        if (this.useMockData) {
-          return { content: 'Confluence spec not available in mock mode.', pageId: i.pageId ?? 'mock' };
+        if (this.mcp) {
+          const result = await this.mcp.jira.callTool({
+            name:      i.pageId ? 'confluence_get_page' : 'confluence_search',
+            arguments: i.pageId ? { pageId: i.pageId } : { query: i.pageTitle, spaceKey: i.spaceKey },
+          });
+          return result;
         }
-        throw new Error('Real Confluence not configured');
+        return { content: 'Confluence spec not available (MCP not configured).', pageId: i.pageId ?? 'mock' };
       }
 
+      // ── score_requirements_quality ────────────────────────────
       case 'score_requirements_quality': {
         const score = scoreRequirementsQuality({
           jiraStoryId:        i.jiraStoryId as string,
@@ -82,6 +115,7 @@ export class RequirementsAgent extends BaseAgent {
         return score;
       }
 
+      // ── generate_test_scenario ────────────────────────────────
       case 'generate_test_scenario': {
         const raw = {
           id:           randomUUID(),
@@ -106,6 +140,7 @@ export class RequirementsAgent extends BaseAgent {
         }
       }
 
+      // ── store_scenarios_in_chroma ─────────────────────────────
       case 'store_scenarios_in_chroma': {
         await this.chroma.addScenarios(this.collectedScenarios);
         const total = await this.chroma.count();
@@ -113,6 +148,7 @@ export class RequirementsAgent extends BaseAgent {
         return { stored: this.collectedScenarios.length, totalInStore: total };
       }
 
+      // ── save_scenarios_json ───────────────────────────────────
       case 'save_scenarios_json': {
         const outputPath = (i.outputPath as string | undefined) ?? 'test-scenarios.json';
         const fullPath   = join(process.cwd(), outputPath);
@@ -126,6 +162,7 @@ export class RequirementsAgent extends BaseAgent {
     }
   }
 
+  /** Publish the 'done' signal to the bus once all work is complete. */
   protected async emitNode(_state: unknown): Promise<void> {
     const output: RequirementsOutput = {
       runId:          randomUUID(),

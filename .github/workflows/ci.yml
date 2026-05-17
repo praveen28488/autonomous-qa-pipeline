@@ -52,6 +52,8 @@ jobs:
 
       - name: Run smoke tests
         run: npx playwright test tests/generated/smoke.spec.ts --project=chromium
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - uses: actions/upload-artifact@v4
         if: failure()

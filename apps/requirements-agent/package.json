@@ -12,8 +12,7 @@
     "@qa/schemas":                "workspace:*",
     "@qa/mcp-clients":            "workspace:*",
     "openai":                     "^6.0.0",
-    "chromadb":                   "^1.8.0",
-    "chromadb-default-embed":     "^2.0.0",
+    "chromadb":                   "^3.4.3",
     "pdf-parse":                  "^1.1.1",
     "@langchain/textsplitters":   "^0.1.0"
   },
