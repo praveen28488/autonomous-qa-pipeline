@@ -1,0 +1,21 @@
+{
+  "name": "autonomous-qa-pipeline",
+  "private": true,
+  "version": "0.0.1",
+  "packageManager": "pnpm@9.15.9",
+  "engines": { "node": ">=20.0.0", "pnpm": ">=9.0.0" },
+  "scripts": {
+    "build":     "turbo run build",
+    "dev":       "turbo run dev --parallel",
+    "typecheck": "turbo run typecheck",
+    "test":      "turbo run test",
+    "lint":      "turbo run lint",
+    "clean":     "turbo run clean"
+  },
+  "devDependencies": {
+    "turbo":      "^2.0.0",
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0",
+    "tsx":        "^4.0.0"
+  }
+}

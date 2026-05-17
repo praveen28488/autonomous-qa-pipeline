@@ -1,0 +1,25 @@
+{
+  "name": "@qa/requirements-agent",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build":     "tsc",
+    "dev":       "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@qa/agent-bus":    "workspace:*",
+    "@qa/schemas":      "workspace:*",
+    "@qa/mcp-clients":  "workspace:*",
+    "chromadb":                    "^1.8.0",
+    "chromadb-default-embed":      "^2.0.0",
+    "pdf-parse":                   "^1.1.1",
+    "@langchain/textsplitters":    "^0.1.0",
+    "@anthropic-ai/sdk":           "^0.39.0"
+  },
+  "devDependencies": {
+    "typescript":       "^5.4.0",
+    "tsx":              "^4.0.0",
+    "@types/pdf-parse": "^1.1.4"
+  }
+}

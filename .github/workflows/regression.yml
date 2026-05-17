@@ -1,0 +1,38 @@
+name: Full regression
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *'
+
+jobs:
+  test:
+    name: Shard ${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shardIndex: [1, 2, 3, 4]
+        shardTotal: [4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - uses: pnpm/action-setup@v3
+        with: { version: 9 }
+      - run: pnpm install --frozen-lockfile
+      - run: npx playwright install --with-deps
+
+      - name: Run shard
+        run: |
+          npx playwright test \
+            --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+        env:
+          BASE_URL: ${{ vars.STAGING_URL }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blob-report-${{ matrix.shardIndex }}
+          path: blob-report/
+          retention-days: 1

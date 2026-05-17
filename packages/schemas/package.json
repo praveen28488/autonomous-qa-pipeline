@@ -1,0 +1,19 @@
+{
+  "name": "@qa/schemas",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build":     "tsc",
+    "dev":       "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean":     "npx rimraf dist"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

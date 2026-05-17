@@ -1,0 +1,70 @@
+version: '3.9'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: qa-redis
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+        --maxmemory 512mb
+        --maxmemory-policy allkeys-lru
+        --save ""
+        --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: qa-chromadb
+    ports:
+      - "8000:8000"
+    environment:
+      CHROMA_SERVER_AUTH_CREDENTIALS_PROVIDER: ""
+      ALLOW_RESET: "true"
+      IS_PERSISTENT: "true"
+    volumes:
+      - chroma_data:/chroma/chroma
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      retries: 5
+    restart: unless-stopped
+
+  github-mcp:
+    image: ghcr.io/github/github-mcp-server:latest
+    container_name: qa-github-mcp
+    ports:
+      - "8811:8811"
+    environment:
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_TOKEN:-placeholder}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8811/health"]
+      interval: 10s
+      retries: 5
+    restart: unless-stopped
+
+  jira-mcp:
+    image: ghcr.io/sooperset/mcp-atlassian:latest
+    container_name: qa-jira-mcp
+    ports:
+      - "8812:8080"
+    environment:
+      JIRA_URL:       ${JIRA_URL:-https://placeholder.atlassian.net}
+      JIRA_USERNAME:  ${JIRA_USERNAME:-placeholder}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN:-placeholder}
+      CONFLUENCE_URL: ${CONFLUENCE_URL:-https://placeholder.atlassian.net/wiki}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8812/health"]
+      interval: 10s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  chroma_data:
