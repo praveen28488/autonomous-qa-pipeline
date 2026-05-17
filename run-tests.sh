@@ -7,7 +7,18 @@ set -e
 
 # ── Gemini API key (passed inline to every command to avoid
 #    inheritance issues when running bash from PowerShell) ─────
-KEY="REDACTED"
+# Load GEMINI_API_KEY from .env.local (never committed to git)
+if [ -f ".env.local" ]; then
+  export GEMINI_API_KEY=$(grep -E '^\s*GEMINI_API_KEY\s*=' .env.local | cut -d'=' -f2- | tr -d '[:space:]')
+fi
+if [ -z "$GEMINI_API_KEY" ]; then
+  echo "ERROR: GEMINI_API_KEY is not set."
+  echo "  Create a file called .env.local in this folder with:"
+  echo "  GEMINI_API_KEY=your_key_here"
+  echo "  Get a free key at: https://aistudio.google.com/apikey"
+  exit 1
+fi
+KEY="$GEMINI_API_KEY"
 
 echo ""
 echo "========================================================"

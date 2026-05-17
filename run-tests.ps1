@@ -1,7 +1,21 @@
 # run-tests.ps1 - Full Day 1-3 test suite
 # Usage: .\run-tests.ps1  (from PowerShell inside VS Code)
 
-$env:GEMINI_API_KEY = "REDACTED"
+# Load GEMINI_API_KEY from .env.local (never committed to git)
+if (Test-Path ".env.local") {
+    Get-Content ".env.local" | ForEach-Object {
+        if ($_ -match "^\s*GEMINI_API_KEY\s*=\s*(.+)$") {
+            $env:GEMINI_API_KEY = $matches[1].Trim()
+        }
+    }
+}
+if (-not $env:GEMINI_API_KEY) {
+    Write-Host "ERROR: GEMINI_API_KEY is not set." -ForegroundColor Red
+    Write-Host "  Create a file called .env.local in this folder with:" -ForegroundColor Yellow
+    Write-Host "  GEMINI_API_KEY=your_key_here" -ForegroundColor Yellow
+    Write-Host "  Get a free key at: https://aistudio.google.com/apikey" -ForegroundColor Yellow
+    exit 1
+}
 
 Write-Host ""
 Write-Host "========================================================"
