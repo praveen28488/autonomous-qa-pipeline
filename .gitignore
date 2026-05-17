@@ -1,4 +1,5 @@
 .env.local
+IMPLEMENTATION.md
 node_modules/
 dist/
 .turbo/
