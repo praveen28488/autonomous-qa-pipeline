@@ -40,6 +40,47 @@ Requirements     Test Generator   Executor
 > To use real LangGraph, swap `GEMINI_API_KEY` for an `ANTHROPIC_API_KEY` and replace
 > the OpenAI client in `packages/agent-bus` with `@anthropic-ai/sdk`.
 
+## Design Decisions
+
+### Why Google Gemini instead of Anthropic Claude?
+
+| Factor | Gemini (chosen) | Anthropic Claude |
+|--------|----------------|-----------------|
+| Cost | ✅ Free tier — no credit card required | ❌ Paid API — requires billing |
+| API format | ✅ OpenAI-compatible endpoint | Proprietary SDK |
+| Tool calling | ✅ Identical function-calling interface | Different format |
+| Embeddings | ✅ `gemini-embedding-001` built-in | ❌ No embedding model |
+| Model used | `gemini-2.0-flash` | `claude-sonnet` |
+
+The spec originally called for Anthropic Claude. Gemini was substituted because:
+1. **Free tier** — Gemini provides a generous free quota with no credit card, making it accessible for evaluation
+2. **Drop-in compatible** — Gemini exposes an OpenAI-compatible endpoint (`/v1beta/openai/`), so the entire agentic loop, tool-calling, and message format remain identical
+3. **Native embeddings** — Gemini provides `gemini-embedding-001` for ChromaDB vector storage; Claude has no embedding model
+
+> To switch back to Anthropic Claude: replace `GEMINI_API_KEY` with `ANTHROPIC_API_KEY` and swap the `baseURL` in `packages/agent-bus/src/base-agent.ts`.
+
+### Why a custom agentic loop instead of LangGraph?
+
+LangGraph's graph primitives are tightly coupled to the Anthropic/OpenAI SDK streaming format and are **incompatible with the Gemini API**. The custom `while(true)` loop in `BaseAgent` implements the identical pattern:
+
+```
+LangGraph:    Node → Edge → Node → Edge → END
+Custom loop:  think → tool_call → observe → think → ... → stop
+```
+
+Same architectural pattern, same result — just without the LangGraph dependency.
+
+### Why ChromaDB for vector storage?
+
+- Purpose-built vector database with cosine similarity search
+- Native support for custom embedding functions (required for Gemini embeddings)
+- Simple Docker deployment, no cloud account needed
+- Supports metadata filtering alongside semantic search
+
+### Why Doppler for secrets?
+
+Doppler provides a centralized secrets manager that injects environment variables at runtime — no `.env` files checked into git. A `.env.local` fallback is also supported for local development without a Doppler account.
+
 ## Prerequisites
 
 | Tool | Version | Download |
@@ -133,13 +174,15 @@ autonomous-qa-pipeline/
 - BaseAgent with agentic loop (think → act → emit)
 - Schema validation at bus boundary (malformed messages rejected)
 
-### Day 3 — Requirements Agent + ChromaDB
-- Requirements Agent ingests Jira stories (or mock data if Jira not configured)
-- Scores acceptance criteria quality (ingest / ingest_with_warning / skip)
-- Generates Gherkin scenarios via Gemini 2.0 Flash
-- Stores scenarios in ChromaDB with semantic embeddings
-- Quality gate: skips stories below threshold
-- Semantic search across stored scenarios
+### Day 3 — Requirements Agent + RAG
+- Requirements Agent ingests from **3 sources**: Jira stories, Confluence pages, PRD PDFs
+- Quality gate scores each story (title + acceptance criteria + Gherkin structure + description)
+- **RAG model**: searches ChromaDB for similar existing scenarios BEFORE generating new ones
+- Retrieved scenarios used as context → better quality, no duplicates
+- Generates Gherkin scenarios (Feature / Scenario / Given / When / Then) via Gemini 2.0 Flash
+- Stores scenarios in ChromaDB with `gemini-embedding-001` embeddings (768 dimensions, cosine similarity)
+- Publishes done signal to Redis bus once pipeline completes
+- Outputs `test-scenarios.json` for downstream agents
 
 ## Running Individual Components
 
